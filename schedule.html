@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>規劃行程</title>
+	<link href="schedule.css" rel="stylesheet">
+</head>
+<body>
+<div id='app'>
+<!-- 地圖 -->
+<div id="map" class="base-map"></div>
+
+<div class="panel-frame" id="panelFrame" >
+	<!-- City select panel -->
+	<div class="panel-single" id="cityPanel">
+		<div class="panel-single-background"></div>
+		<div class="panel-single-content"> 
+			<div class="cityButton" id="openSelect" v-on:click="openCityMenu">
+				選擇城市
+			</div>
+			<hr>
+			<div id = "cityList"></div>
+			<!--
+			<div v-for= "city in citys" class="cityButton">
+				{{city}}
+			</div>
+			-->
+		</div>
+	</div>
+	<!-- Sights select panel -->
+	<div class="panel-single" id="sightsPanel">
+		<div class="panel-single-background"></div>
+		<div class="panel-single-content"> 
+			<div class="sightsButton">
+				景點	
+			</div>
+			
+			<hr>
+			<div id="sightsList"></div>
+		</div>
+	</div>
+	<!-- Sights information -->
+	<div class="panel-single" id="sightsInformation">
+		<div class="panel-single-background"></div>
+		<div class="panel-single-content"> 
+			<div class="informationButton">
+				資訊
+			</div>
+			
+			<hr>
+			<div id="sightsInformationContent">
+				<div v-text = "sightsName"></div>
+				<div v-text = "sightsCategory"></div>
+				<div v-text = "sightsGoogle_rank"></div>
+				<div v-text = "sightsWeb_address"></div>
+			</div>
+		</div>
+	</div>
+</div>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/vue@2.5.17/dist/vue.js"></script>
+<script async defer
+	src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD_r69t_T1l9C9FquU_hjGBN6emDfN9UvQ&callback=initMap"></script>
+<!-- Google map  -->
+<script src="scheduleMap.js"></script>
+
+<script src="js/test.js" type="module"></script>
+<!-- 網站主js -->
+<!--
+<script async defer type="text/javascript" src="js/vue-schedule.js"></script>
+-->
+<script>
+
+
+
+
+const app = new Vue({
+	el: '#app',
+	data:{
+		cityList :[],
+		cityName :[],
+		//citys: ['台北', '北海岸'], // AJAX 抓取後端資料
+		//cityId : ["taipei", "nc"],
+		cityInformation :[],
+		sightsListName :[],
+		//sightsInformation : ['四四南村', '信義商圈', '松菸文創園區', '松山車站'],
+		sightsName : "",
+		sightsCategory:"",
+		sightsGoogle_rank:"",
+		sightsWeb_address:""
+		
+	},
+	mounted : function(){
+		// Create list for city
+		this.getCityList(function(){
+			let cityList = document.getElementById('cityList');
+			for(i = 0; i<app.cityList.length; i++){
+				// Create div
+				let listDiv = document.createElement('div');
+				// Create div context 
+				let divTxt = document.createTextNode(app.cityList[i].ChineseName);
+				// append to list
+				listDiv.appendChild(divTxt);
+				cityList.appendChild(listDiv);
+				// set id attribute into div
+				cityList.getElementsByTagName("div")[i].setAttribute("id", app.cityList[i].id); 
+				
+				// Add Event Listener to city button for turning on the sights list.
+				app.createCityButton(i);
+				
+			}
+		 
+		});
+		
+	},
+	methods:{
+		// ajax
+		ajax : function(method, src, args, callback){
+			let req=new XMLHttpRequest();
+				if(method.toLowerCase()=="post"){
+					req.open(method, src);
+					req.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+					req.onload=callback;
+					req.send(args);
+				}else{
+					req.open(method, src+"?"+args);
+					req.onload=callback;
+					req.send();
+				}
+		},
+		// openCityMenu
+		openCityMenu : function(){
+			let panelFrame = document.getElementById('panelFrame');
+			let cityPanel = document.getElementById("cityPanel");
+			let panelFrameHeight = parseInt(panelFrame.style.height);
+			let cityPanelHeight = parseInt(cityPanel.style.height);
+			if(cityPanelHeight != 500){
+				panelFrame.style.height = 500+'px';
+				//panelFrame.style.width = 400+'px';
+				cityPanel.style.height = 500+'px';
+			}else{
+				panelFrame.style.height = 30+'px';
+				//panelFrame.style.width = 400+'px';
+				cityPanel.style.height = 30+"px";
+			}
+		},
+		// 創造選擇城市的按鈕以及選擇城市後跳出該城市的景點list
+		createCityButton : function(i){
+		/* 
+		Add Event Listener to city button for turning on the sights list.
+		*/
+
+			// 抓取 city list 中所有 div 標籤，逐一註冊監聽事件：
+			cityList.getElementsByTagName("div")[i].addEventListener('click', function(){
+				// 抓取按鈕的id 然後當作查詢的變數送進後端
+				let pathId = this.getAttribute("id");
+				// 把 City 的 id 放進title中，目的是後面景點按鈕的路徑用。
+				document.getElementsByClassName('sightsButton')[0].setAttribute("id", pathId);
+				// 去後端取回景點 list
+				app.getSightList(pathId, function(){
+					let sightsPanel = document.getElementById('sightsPanel');
+					let sightsPanelHeight = parseInt(sightsPanel.style.height);
+					// Open sights list menu
+					if(sightsPanelHeight != 500){
+						sightsPanel.style.height = 500+'px';
+						// Create a new sights list for single selected city.
+						let sightsList = document.getElementById('sightsList');
+						/* 
+							1. 創建一個 listFrame，用來裝list的外層框架，清空畫面用。
+							2. 如果 listFrame 存在，刪除清空畫面。
+						*/
+						if(!document.getElementById('listFrame')){	
+							let listFrame = document.createElement('div');
+							listFrame.setAttribute("id", 'listFrame');
+
+							for(j = 0; j < app.sightsListName.length; j++){
+								// Create sights list div
+
+								let listDivSights = document.createElement('div');
+								// Create div context 
+								let divTxtSights = document.createTextNode(app.sightsListName[j].name);
+								// append to list
+								listDivSights.appendChild(divTxtSights);
+								sightsList.appendChild(listFrame);
+								listFrame.appendChild(listDivSights);
+								// create sights buttons
+								app.createSightsButton(j);
+							}
+						}else{
+							sightsList.removeChild(listFrame);
+						}
+					}else{
+						sightsPanel.style.height = 30+'px';
+						sightsList.removeChild(listFrame);
+					}
+				});
+				
+			});
+		},
+		createSightsButton : function(i){
+		/*
+			依序創造景點按鈕點擊後顯示	
+				1. 地圖標示
+				2. 地圖標示景點簡易資訊
+		*/
+			listFrame.getElementsByTagName('div')[i].addEventListener('click', function(){
+				let cityName = document.getElementsByClassName('sightsButton')[0].getAttribute('id');
+				let ButtonName = this.innerHTML;
+				// console.log(ButtonName);
+				// 景點的座標擺入
+				let sightsPoint = {lat: parseFloat(app.sightsListName[i].lat), lng: parseFloat(app.sightsListName[i].lng)};
+				// 切換地圖
+				changeMap(sightsPoint);
+				document.getElementById('sightsInformation').style.height = 500+'px';
+				app.getSightsData(cityName, ButtonName);
+			});			
+		},
+		getSightList : function(selectCity, callback){
+			let path = '/'+selectCity+'/sights';
+			this.ajax('get', path, '', function(){
+				let sightsList = JSON.parse(this.responseText);
+				if(!sightsList){
+					dataErr();
+				}else{
+					app.sightsListName = sightsList;
+					callback(app.sightsListName);
+				}
+			});
+		},
+		// 抓取整個城市列表
+		getCityList : function(callback){
+			this.ajax('get', '/city/list', "", function(){
+				let cityList = JSON.parse(this.responseText);
+				if(!cityList){
+					dataErr();
+				}else{
+					app.cityList = cityList;
+					callback(app.cityList);
+				}
+			});
+		},
+		// 將城市名字填入
+		getCityName : function(){
+			let cityName = [];
+			// 偵測共有幾座城市，寫個迴圈
+			for(i=0; i<this.cityList.length; i++){
+				let selectCity = this.cityList[i].name;
+				let path = '/'+selectCity+'/information';
+				// 去資料庫把每個城市的資訊拉出來
+				this.ajax('get', path, '', function(){
+					let cityInformation = JSON.parse(this.responseText);
+					if(!cityInformation){
+						dataErr();
+					}else{
+						cityName.push(cityInformation[0]);
+						app.cityInformation = cityName;
+						//callback(app.cityInformation);
+						
+					}
+
+				});
+			}
+			
+		},
+		// 取出景點資訊
+		getSightsData :function(selectCity, selectSights){
+			//let selectCity;
+			//let selectSights;
+			let path = '/'+selectCity+'/sights/'+selectSights;
+			this.ajax('get', path, "", function(){
+				let sightsData = JSON.parse(this.responseText);
+				if(!sightsData){
+					dataErr();
+				}else{
+					app.sightsName = sightsData[0].name;
+					app.sightsCategory = sightsData[0].category;
+					app.sightsGoogle_rank = sightsData[0].google_rank;
+					app.sightsWeb_address = sightsData[0].web_address;
+				}
+			});
+		}
+	}
+
+});
+
+
+
+</script>
+
+	
+
+</body>
+</html>
